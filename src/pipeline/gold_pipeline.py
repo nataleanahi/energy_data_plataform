@@ -24,14 +24,14 @@ class GoldPipeline(BasePipeline):
             logger.error(f"Error al leer los archivos de la capa Silver: {str(e)}")
             raise e
 
-        logger.info("Realizando merge de pozos y producción por 'id_pozo'...")
-        df_gold = pd.merge(df_prod, df_pozos, on='id_pozo', how='inner')
+        logger.info("Realizando merge de pozos y producción por 'idpozo'...")
+        df_gold = pd.merge(df_prod, df_pozos, on='idpozo', how='inner')
 
         logger.info("Calculando métricas analíticas (GOR y Water Cut)...")
 
-        df_gold['gor'] = df_gold['prod_gas'] / df_gold['prod_petroleo'].replace(0, pd.NA)
+        df_gold['gor'] = df_gold['prod_gas'] / df_gold['prod_pet'].replace(0, pd.NA)
 
-        liquido_total = df_gold['prod_petroleo'] + df_gold['prod_agua']
+        liquido_total = df_gold['prod_pet'] + df_gold['prod_agua']
         df_gold['water_cut'] = df_gold['prod_agua'] / liquido_total.replace(0, pd.NA)
 
         logger.info(f"Guardando archivo final en la capa Gold: {self.ruta_output}")
