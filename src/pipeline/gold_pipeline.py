@@ -14,14 +14,26 @@ class GoldPipeline(BasePipeline):
         self.ruta_output = os.path.join(self.carpeta_output, 'metricas_pozos_mensual.parquet')
 
     def transformar(self, df_pozos: pd.DataFrame, df_prod: pd.DataFrame) -> pd.DataFrame:
-        logger.info("Realizando merge de pozos y producción por las columnas modificadas...")
-        df_gold = pd.merge(df_prod, df_pozos, on='idpozo', how='inner')
+        logger.info("Realizando merge de pozos y producción...")
 
-        logger.info("Calculando GOR y Water Cut...")
+        columna_union = 'idpozo'
+
+        columnas_pozos = [col for col in df_pozos.columns if
+                          col not in ['prod_pet', 'prod_gas', 'prod_agua'] or col == columna_union]
+        df_pozos_filtrado = df_pozos[columnas_pozos]
+
+        df_gold = pd.merge(df_prod, df_pozos_filtrado, on=columna_union, how='inner')
+
+        logger.info("Calculando GOR y Water Cut sobre los datos reales...")
+
         df_gold['gor'] = df_gold['prod_gas'] / df_gold['prod_pet'].replace(0, pd.NA)
 
-        liquido_total = df_gold['prod_pet'] + df_gold['prod_agua']
-        df_gold['water_cut'] = df_gold['prod_agua'] / liquido_total.replace(0, pd.NA)
+        columna_agua = 'prod_agua'
+        if columna_agua in df_gold.columns:
+            liquido_total = df_gold['prod_pet'] + df_gold[columna_agua]
+            df_gold['water_cut'] = df_gold[columna_agua] / liquido_total.replace(0, pd.NA)
+        else:
+            logger.warning(f"No se encontró la columna {columna_agua} para calcular el Water Cut.")
 
         return df_gold
 
