@@ -4,6 +4,9 @@ from pathlib import Path
 
 from airflow import DAG
 from airflow.operators.python import PythonOperator
+from airflow.operators.trigger_dagrun import TriggerDagRunOperator
+from src.pipeline.pozos_pipeline import PozosPipeline
+from src.pipeline.produccion_pipeline import ProduccionPipeline
 import logging
 
 logger = logging.getLogger(__name__)
@@ -11,9 +14,6 @@ logger = logging.getLogger(__name__)
 RAIZ_PROYECTO = Path(__file__).resolve().parent.parent
 if str(RAIZ_PROYECTO) not in sys.path:
     sys.path.append(str(RAIZ_PROYECTO))
-
-from src.pipeline.pozos_pipeline import PozosPipeline
-from src.pipeline.produccion_pipeline import ProduccionPipeline
 
 def ejecutar_pipeline_pozos():
     pipeline = PozosPipeline()
@@ -57,9 +57,10 @@ with DAG(
         python_callable=ejecutar_pipeline_produccion,
     )
 
-    task_gold_ready = PythonOperator(
-        task_id="notificar_listo_para_gold",
-        python_callable=etapa_gold_placeholder,
+    trigger_gold = TriggerDagRunOperator(
+        task_id='disparar_pipeline_gold',
+        trigger_dag_id='pipeline_energia_gold',
+        wait_for_completion=False
     )
 
-    [task_pozos, task_produccion] >> task_gold_ready
+    [task_pozos, task_produccion] >> trigger_gold
