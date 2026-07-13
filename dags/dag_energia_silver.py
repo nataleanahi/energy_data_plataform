@@ -16,11 +16,11 @@ from src.pipeline.pozos_pipeline import PozosPipeline
 from src.pipeline.produccion_pipeline import ProduccionPipeline
 
 def ejecutar_pipeline_pozos():
-    pipeline = PozosPipeline
+    pipeline = PozosPipeline()
     pipeline.run()
 
 def ejecutar_pipeline_produccion():
-    pipeline = ProduccionPipeline
+    pipeline = ProduccionPipeline()
     pipeline.run()
 
 def etapa_gold_placeholder():
