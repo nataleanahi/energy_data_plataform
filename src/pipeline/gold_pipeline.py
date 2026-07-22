@@ -1,5 +1,6 @@
 import logging
 import os
+import calendar
 import pandas as pd
 from src.pipeline.base_pipeline import BasePipeline
 
@@ -18,22 +19,44 @@ class GoldPipeline(BasePipeline):
 
         columna_union = 'idpozo'
 
-        columnas_pozos = [col for col in df_pozos.columns if
-                          col not in ['prod_pet', 'prod_gas', 'prod_agua'] or col == columna_union]
+        columnas_pozos = [
+            col for col in df_pozos.columns
+            if col not in ['prod_pet', 'prod_gas', 'prod_agua'] or col == columna_union
+        ]
         df_pozos_filtrado = df_pozos[columnas_pozos]
 
         df_gold = pd.merge(df_prod, df_pozos_filtrado, on=columna_union, how='inner')
 
-        logger.info("Calculando GOR y Water Cut sobre los datos reales...")
+        logger.info("Ordenando cronológicamente para cálculos temporales...")
+        df_gold = df_gold.sort_values(by=[columna_union, 'anio', 'mes']).reset_index(drop=True)
+
+        logger.info("Calculando métricas analíticas de Oil & Gas...")
+
+        df_gold['liquido_total'] = df_gold['prod_pet'] + df_gold['prod_agua']
+
+        # Barrel of Oil Equivalent 1000 m3 gas ~= 6.29 bbl / ~1 m3 pet = 1 m3 OE
+        df_gold['prod_m3_oe'] = df_gold['prod_pet'] + (df_gold['prod_gas'] * 6.29)
 
         df_gold['gor'] = df_gold['prod_gas'] / df_gold['prod_pet'].replace(0, pd.NA)
+        df_gold['water_cut'] = df_gold['prod_agua'] / df_gold['liquido_total'].replace(0, pd.NA)
+        df_gold['wgr'] = df_gold['prod_agua'] / df_gold['prod_gas'].replace(0, pd.NA)
 
-        columna_agua = 'prod_agua'
-        if columna_agua in df_gold.columns:
-            liquido_total = df_gold['prod_pet'] + df_gold[columna_agua]
-            df_gold['water_cut'] = df_gold[columna_agua] / liquido_total.replace(0, pd.NA)
-        else:
-            logger.warning(f"No se encontró la columna {columna_agua} para calcular el Water Cut.")
+        if 'tef' in df_gold.columns:
+            df_gold['dias_mes'] = df_gold.apply(lambda row: calendar.monthrange(int(row['anio']), int(row['mes']))[1],
+                                                axis=1)
+
+            df_gold['uptime_pct'] = (df_gold['tef'] / df_gold['dias_mes']).clip(upper=1.0)
+            df_gold['downtime_dias'] = df_gold['dias_mes'] - df_gold['tef']
+
+            df_gold['caudal_diario_pet'] = df_gold['prod_pet'] / df_gold['tef'].replace(0, pd.NA)
+            df_gold['caudal_diario_gas'] = df_gold['prod_gas'] / df_gold['tef'].replace(0, pd.NA)
+            df_gold['caudal_diario_agua'] = df_gold['prod_agua'] / df_gold['tef'].replace(0, pd.NA)
+
+        df_gold['np_acum_pet'] = df_gold.groupby(columna_union)['prod_pet'].cumsum()
+        df_gold['gp_acum_gas'] = df_gold.groupby(columna_union)['prod_gas'].cumsum()
+        df_gold['wp_acum_agua'] = df_gold.groupby(columna_union)['prod_agua'].cumsum()
+
+        df_gold['mes_vida_pozo'] = df_gold.groupby(columna_union).cumcount() + 1
 
         return df_gold
 
